@@ -56,6 +56,9 @@ export class Payout {
   @Column({ type: 'varchar', nullable: true })
   submissionId: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  idempotencyKey: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   transactionHash: string | null;
 

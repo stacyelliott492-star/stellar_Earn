@@ -60,6 +60,17 @@ export class PayoutsService {
     claimPayoutDto: ClaimPayoutDto,
     userAddress: string,
   ): Promise<PayoutResponseDto> {
+    // ── Idempotency check ────────────────────────────────────────────────────
+    if (claimPayoutDto.idempotencyKey) {
+      const existing = await this.payoutRepository.findOne({
+        where: { idempotencyKey: claimPayoutDto.idempotencyKey },
+      });
+      if (existing) {
+        // Return the cached response — same key, same result.
+        return this.mapToResponse(existing);
+      }
+    }
+
     const payout = await this.payoutRepository.findOne({
       where: {
         submissionId: claimPayoutDto.submissionId,
@@ -83,6 +94,9 @@ export class PayoutsService {
 
     payout.claimedAt = new Date();
     payout.status = PayoutStatus.PROCESSING;
+    if (claimPayoutDto.idempotencyKey) {
+      payout.idempotencyKey = claimPayoutDto.idempotencyKey;
+    }
     await this.payoutRepository.save(payout);
 
     this.processPayout(payout.id).catch((error) => {
@@ -558,6 +572,7 @@ export class PayoutsService {
       type: payout.type,
       questId: payout.questId,
       submissionId: payout.submissionId,
+      idempotencyKey: payout.idempotencyKey,
       transactionHash: payout.transactionHash,
       stellarLedger: payout.stellarLedger,
       settlementConfirmations: payout.settlementConfirmations,

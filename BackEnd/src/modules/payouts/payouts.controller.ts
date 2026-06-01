@@ -140,6 +140,7 @@ export class PayoutsController {
       type: payout.type,
       questId: payout.questId,
       submissionId: payout.submissionId,
+      idempotencyKey: payout.idempotencyKey,
       transactionHash: payout.transactionHash,
       stellarLedger: payout.stellarLedger,
       settlementConfirmations: payout.settlementConfirmations,
