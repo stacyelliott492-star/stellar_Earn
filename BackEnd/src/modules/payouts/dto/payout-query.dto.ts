@@ -66,6 +66,7 @@ export class PayoutResponseDto {
   @ApiProperty({ enum: PayoutType }) type: PayoutType;
   @ApiPropertyOptional() questId?: string | null;
   @ApiPropertyOptional() submissionId?: string | null;
+  @ApiPropertyOptional() idempotencyKey?: string | null;
   @ApiPropertyOptional() transactionHash?: string | null;
   @ApiPropertyOptional() stellarLedger?: number | null;
   @ApiProperty() settlementConfirmations: number;

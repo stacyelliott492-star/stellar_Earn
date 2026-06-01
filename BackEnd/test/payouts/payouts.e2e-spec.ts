@@ -331,4 +331,94 @@ describe('Payouts (e2e)', () => {
       expect(rateLimited).toBe(true);
     });
   });
+
+  describe('Idempotency', () => {
+    it('should return the same response for repeated claims with the same idempotency key', async () => {
+      const payoutRepository = dataSource.getRepository(Payout);
+      const idempotentSubmissionId = '550e8400-e29b-41d4-a716-446655440010';
+      const idempotencyKey = `idem-key-${Date.now()}`;
+
+      const idempotentPayout = payoutRepository.create({
+        stellarAddress,
+        amount: 7.0,
+        asset: 'XLM',
+        type: PayoutType.QUEST_REWARD,
+        status: PayoutStatus.PENDING,
+        submissionId: idempotentSubmissionId,
+      });
+      await payoutRepository.save(idempotentPayout);
+
+      // First claim
+      const first = await request(app.getHttpServer())
+        .post('/payouts/claim')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ submissionId: idempotentSubmissionId, stellarAddress, idempotencyKey })
+        .expect(200);
+
+      // Second claim with same key — must return identical id and status
+      const second = await request(app.getHttpServer())
+        .post('/payouts/claim')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ submissionId: idempotentSubmissionId, stellarAddress, idempotencyKey })
+        .expect(200);
+
+      expect(second.body.id).toBe(first.body.id);
+      expect(second.body.status).toBe(first.body.status);
+      expect(second.body.idempotencyKey).toBe(idempotencyKey);
+    });
+
+    it('should reject an idempotency key longer than 255 characters', () => {
+      return request(app.getHttpServer())
+        .post('/payouts/claim')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          submissionId: '550e8400-e29b-41d4-a716-446655440099',
+          stellarAddress,
+          idempotencyKey: 'x'.repeat(256),
+        })
+        .expect(400);
+    });
+
+    it('should treat two different idempotency keys as independent requests', async () => {
+      const payoutRepository = dataSource.getRepository(Payout);
+
+      const sub1 = '550e8400-e29b-41d4-a716-446655440011';
+      const sub2 = '550e8400-e29b-41d4-a716-446655440012';
+
+      await payoutRepository.save(
+        payoutRepository.create({
+          stellarAddress,
+          amount: 3.0,
+          asset: 'XLM',
+          type: PayoutType.QUEST_REWARD,
+          status: PayoutStatus.PENDING,
+          submissionId: sub1,
+        }),
+      );
+      await payoutRepository.save(
+        payoutRepository.create({
+          stellarAddress,
+          amount: 4.0,
+          asset: 'XLM',
+          type: PayoutType.QUEST_REWARD,
+          status: PayoutStatus.PENDING,
+          submissionId: sub2,
+        }),
+      );
+
+      const res1 = await request(app.getHttpServer())
+        .post('/payouts/claim')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ submissionId: sub1, stellarAddress, idempotencyKey: `key-a-${Date.now()}` })
+        .expect(200);
+
+      const res2 = await request(app.getHttpServer())
+        .post('/payouts/claim')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ submissionId: sub2, stellarAddress, idempotencyKey: `key-b-${Date.now()}` })
+        .expect(200);
+
+      expect(res1.body.id).not.toBe(res2.body.id);
+    });
+  });
 });

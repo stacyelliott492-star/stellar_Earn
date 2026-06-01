@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsEnum,
   IsNumber,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -26,6 +27,18 @@ export class ClaimPayoutDto {
   @IsString()
   @IsNotEmpty()
   stellarAddress: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Client-supplied idempotency key (max 255 chars). ' +
+      'Repeat the same key to safely retry without double-paying. ' +
+      'Omit to get non-idempotent behaviour.',
+    example: 'client-req-uuid-or-hash-abc123',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  idempotencyKey?: string;
 }
 
 export class CreatePayoutDto {
